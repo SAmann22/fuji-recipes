@@ -1,0 +1,7 @@
+name,short_code,film_simulation,dynamic_range,d_range_priority,grain_effect,grain_size,color_chrome_effect,color_chrome_effect_blue,white_balance,wb_kelvin,wb_shift_red,wb_shift_blue,bw_adj_warm_cool,highlight_tone,shadow_tone,color,sharpness,noise_reduction,clarity,iso,exposure_compensation,creator,notes
+Everyday Gold,EG +4-5,CLASSIC CHROME,AUTO,,STRONG,,OFF,,DAYLIGHT / FINE,,+4,-5,,-2,+1,+3,-2,-4,,up to ISO 6400,+2/3 to +1 1/3,Example,"Warm, golden everyday color for sunny days. A friendly all-rounder."
+Warm Portrait,WP +2-6,CLASSIC CHROME,AUTO,,STRONG,,STRONG,,DAYLIGHT / FINE,,+2,-6,,-1,-1,+2,-2,-4,,up to ISO 6400,+2/3 to +1,Example,"Soft, warm skin tones for people and portraits."
+Vivid Landscape,VL +0+0,Velvia / VIVID,DR400,,WEAK,,STRONG,,AUTO,,+0,+0,,-1,-1,+4,0,-4,,up to ISO 6400,+1/3 to +1,Example,"Punchy, saturated colors for landscapes and blue skies."
+Soft Pastel,SP +4+4,ASTIA / SOFT,DR400,,STRONG,,STRONG,,COLOR TEMPERATURE (Kelvin),6700,+4,+4,,0,+3,+4,0,-4,0,,,Example,"Gentle, dreamy pastel look with lifted shadows."
+Clean Standard,CS +3-4,PROVIA / STANDARD,DR400,,OFF,,OFF,,AUTO,,+3,-4,,+1,+1,+3,-2,-4,0,,,Example,"A neutral, reliable daily look with a little extra color."
+High-Contrast B&W,BW +0+0,MONOCHROME,DR200,,STRONG,,STRONG,,AUTO,,+0,+0,0,+4,+4,,+3,-4,,up to ISO 12800,0 to +2/3,Example,Bold black & white with deep contrast and visible grain.

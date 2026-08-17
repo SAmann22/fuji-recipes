@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Editor-/Werkzeug-Einstellungen (lokal)
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+
+# Beispielbilder bleiben lokal (nicht ins Repo, können groß werden)
+images/
+
+# Nutzerdaten bleiben lokal — ein frischer Klon startet mit leerer Bibliothek.
+# Die App legt beim ersten Start eine leere recipes.csv und eine Standard-Kamera an.
+recipes.csv
+cameras.json

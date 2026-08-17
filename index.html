@@ -1,0 +1,854 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FujiRecipeVault</title>
+<link rel="icon" href="/ICON.png">
+
+<!--
+  Komplette Oberfläche in einer Datei.
+  Oben: Kamera-Auswahl. Es werden nur Rezepte, Filmsimulationen, Parameter und
+  Plätze der gewählten Kamera gezeigt. Rezepte können mehreren Kameras zugeordnet sein.
+  Design: Schwarz/Grau, weiße Schrift, Rot als Akzent.
+-->
+
+<style>
+  :root{
+    --bg:#0c0c0e; --panel:#151517; --panel-2:#1d1d21; --ink:#f4f4f5; --muted:#9a9aa2;
+    --line:#2a2a30; --field:#111114; --field-line:#33333b;
+    --accent:#ff453a; --accent-hover:#ff6058; --radius:11px;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  [hidden]{ display:none !important; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink); line-height:1.45; height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+
+  .app-header{ flex:none; background:#000; border-bottom:1px solid var(--line); padding:14px 22px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .app-mark{ width:26px; height:26px; flex:none; display:block; }
+  .app-header .divider{ width:1px; height:22px; background:#3a3a42; }
+  .app-header h1{ margin:0; font-size:22px; font-weight:700; color:#fff; letter-spacing:.2px; line-height:1; }
+  .cam-picker{ display:flex; align-items:center; gap:8px; margin-left:6px; }
+  .cam-select{ background:var(--field); border:1px solid var(--field-line); color:var(--ink); border-radius:9px; padding:8px 11px; font:inherit; font-weight:600; }
+  .cam-select:focus{ outline:none; border-color:var(--accent); }
+  .btn-quit{ margin-left:auto; background:transparent; border:1px solid var(--field-line); color:var(--muted); border-radius:9px; padding:8px 14px; font:inherit; font-weight:600; font-size:13px; cursor:pointer; }
+  .btn-quit:hover{ color:var(--accent); border-color:var(--accent); }
+
+  .layout{ flex:1; min-height:0; display:grid; grid-template-columns:340px 1fr; }
+
+  /* LINKS */
+  .sidebar{ min-height:0; display:flex; flex-direction:column; border-right:1px solid var(--line); background:var(--panel); }
+  .sidebar-top{ padding:13px; display:flex; flex-direction:column; gap:9px; border-bottom:1px solid var(--line); }
+  .control{ width:100%; background:var(--field); border:1px solid var(--field-line); color:var(--ink); border-radius:9px; padding:9px 11px; font:inherit; }
+  .control::placeholder{ color:#6b6b73; }
+  .control:focus{ outline:none; border-color:var(--accent); }
+  .btn-new{ width:100%; background:var(--accent); color:#fff; border:none; border-radius:var(--radius); padding:11px 14px; font:inherit; font-weight:650; cursor:pointer; }
+  .btn-new:hover{ background:var(--accent-hover); }
+  .row{ display:flex; gap:9px; }
+  .row .control{ flex:1; }
+  .toggle{ background:var(--field); border:1px solid var(--field-line); color:var(--muted); border-radius:9px; padding:0 13px; cursor:pointer; font-weight:600; font-size:14px; }
+  .toggle.on{ color:#fff; border-color:var(--accent); background:rgba(255,69,58,.16); }
+  .seg{ display:flex; border:1px solid var(--field-line); border-radius:9px; overflow:hidden; }
+  .seg button{ flex:1; background:var(--field); color:var(--muted); border:none; padding:8px 6px; font:inherit; font-weight:600; font-size:12.5px; cursor:pointer; border-left:1px solid var(--field-line); }
+  .seg button:first-child{ border-left:none; }
+  .seg button.on{ background:rgba(255,69,58,.16); color:#fff; }
+  .count{ font-size:12px; color:var(--muted); padding-left:2px; }
+
+  .recipe-list{ flex:1; min-height:0; overflow:auto; padding:8px; }
+  .item{ display:flex; align-items:center; gap:8px; padding:10px 10px 10px 12px; border-radius:10px; cursor:pointer; border:1px solid transparent; margin-bottom:4px; }
+  .item:hover{ background:var(--panel-2); }
+  .item.active{ background:var(--panel-2); border-color:var(--line); box-shadow:inset 3px 0 0 var(--accent); }
+  .item.dragging{ opacity:.5; }
+  .item-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .item .nm{ font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item.active .nm{ color:var(--accent); }
+  .item .fs{ font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .heart{ flex:none; background:none; border:none; color:#6b6b73; font-size:17px; cursor:pointer; padding:4px; line-height:1; }
+  .heart:hover,.heart.on{ color:var(--accent); }
+  .list-empty{ color:var(--muted); font-size:13px; text-align:center; padding:26px 14px; line-height:1.5; }
+  .list-empty b{ color:var(--ink); font-weight:650; }
+  .empty-actions{ margin-top:16px; }
+  .empty-hint{ margin-top:14px; font-size:12px; color:var(--muted); }
+
+  /* RECHTS */
+  .editor-wrap{ min-height:0; overflow:auto; }
+  .editor-empty{ min-height:100%; display:flex; align-items:flex-start; justify-content:center; padding:36px 22px; }
+  .empty-inner{ width:min(620px, 100%); }
+  .empty-title{ font-size:18px; font-weight:700; margin:0 0 4px; }
+  .empty-sub{ color:var(--muted); font-size:13px; margin:0 0 22px; line-height:1.6; }
+  .camera-slots{ display:flex; flex-direction:column; gap:10px; }
+  .cslot{ display:flex; align-items:center; gap:14px; border:1px solid var(--field-line); border-radius:12px; padding:14px 16px; background:var(--field); transition:border-color .15s, background .15s; }
+  .cslot.drop{ border-color:var(--accent); background:rgba(255,69,58,.14); }
+  .cslot-n{ font-family:ui-monospace,Menlo,monospace; font-weight:700; color:var(--accent); font-size:15px; width:28px; flex:none; }
+  .cslot-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cslot.filled .cslot-name{ cursor:pointer; }
+  .cslot.filled .cslot-name:hover{ color:var(--accent); }
+  .cslot.empty .cslot-name{ color:#6b6b73; }
+  .cslot-clear{ flex:none; background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:4px 7px; border-radius:6px; }
+  .cslot-clear:hover{ color:var(--accent); background:rgba(255,69,58,.12); }
+
+  .editor-head{ position:sticky; top:0; z-index:2; background:var(--panel); border-bottom:1px solid var(--line); padding:14px 22px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .editor-headline{ display:flex; align-items:center; gap:18px; min-width:0; }
+  .editor-title{ font-size:16px; font-weight:650; }
+  .editor-sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .code-field{ display:flex; flex-direction:column; gap:3px; }
+  .code-field label{ font-size:10px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:700; }
+  .code-field input{ width:135px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:700; letter-spacing:.5px; color:var(--accent); text-transform:uppercase; background:var(--field); border:1px solid #4a2b2c; border-radius:8px; padding:7px 10px; }
+  .code-field input::placeholder{ color:#7c5b58; }
+  .code-field input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(255,69,58,.2); }
+  .editor-actions{ display:flex; gap:8px; flex:none; align-items:center; }
+
+  .btn{ border:none; border-radius:9px; padding:9px 15px; font:inherit; font-weight:650; cursor:pointer; }
+  .btn-primary{ background:var(--accent); color:#fff; }
+  .btn-primary:hover{ background:var(--accent-hover); }
+  .btn-ghost{ background:var(--panel-2); color:var(--ink); border:1px solid var(--field-line); }
+  .btn-ghost:hover{ border-color:#4b4b55; }
+  .btn-danger{ background:transparent; color:var(--accent); border:1px solid #4a2b2c; }
+  .btn-danger:hover{ background:rgba(255,69,58,.12); }
+  .icon-btn{ background:transparent; border:1px solid var(--field-line); color:var(--muted); border-radius:8px; padding:7px 11px; cursor:pointer; font-size:16px; line-height:1; }
+  .icon-btn:hover,.icon-btn.on{ color:var(--accent); border-color:#4a2b2c; }
+
+  .editor-body{ padding:18px 22px 46px; max-width:940px; }
+  .group{ margin-bottom:22px; }
+  .group-title,.band-title{ font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); font-weight:700; margin:0 0 12px; }
+  .fields{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px; }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field.wide{ grid-column:1 / -1; }
+  label{ font-size:12.5px; color:var(--muted); font-weight:600; display:flex; align-items:center; gap:6px; }
+  label .req{ color:var(--accent); }
+  input,select,textarea{ font:inherit; color:var(--ink); background:var(--field); border:1px solid var(--field-line); border-radius:9px; padding:9px 11px; width:100%; }
+  input::placeholder,textarea::placeholder{ color:#6b6b73; }
+  input:focus,select:focus,textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(255,69,58,.20); }
+  select option{ background:#151517; color:var(--ink); }
+  textarea{ resize:vertical; min-height:70px; }
+
+  .help{ flex:none; width:17px; height:17px; border-radius:50%; border:1px solid var(--field-line); background:transparent; color:var(--muted); font-size:11px; font-weight:700; line-height:1; cursor:pointer; padding:0; }
+  .help:hover{ color:var(--accent); border-color:var(--accent); }
+  .help-pop{ position:fixed; z-index:50; background:#1d1d21; color:var(--ink); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:10px; padding:11px 13px; font-size:12.5px; line-height:1.5; box-shadow:0 8px 30px rgba(0,0,0,.5); }
+
+  /* Kamera-Zugehörigkeit (Chips) */
+  .cam-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .cam-chip{ display:flex; align-items:center; gap:7px; border:1px solid var(--field-line); border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:600; color:var(--muted); background:var(--field); cursor:pointer; }
+  .cam-chip.on{ color:#fff; border-color:var(--accent); background:rgba(255,69,58,.16); }
+  .cam-chip.locked{ cursor:default; opacity:.9; }
+  .cam-chip.disabled{ opacity:.4; cursor:not-allowed; }
+
+  /* Bilder */
+  .image-band{ display:flex; gap:8px; overflow-x:auto; padding:2px 0 8px; }
+  .thumb{ flex:none; height:5cm; width:auto; display:block; background:#000; cursor:zoom-in; }
+  .add-thumb{ flex:none; height:5cm; width:110px; border:1px dashed var(--field-line); background:var(--field); color:var(--muted); cursor:pointer; font:inherit; font-weight:600; font-size:13px; display:flex; align-items:center; justify-content:center; }
+  .add-thumb:hover{ border-color:var(--accent); color:var(--accent); }
+  .ctx-menu{ position:fixed; z-index:70; background:#1d1d21; border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 8px 30px rgba(0,0,0,.5); }
+  .ctx-menu button{ display:block; width:100%; background:transparent; border:none; color:var(--ink); font:inherit; padding:8px 16px; text-align:left; cursor:pointer; border-radius:6px; white-space:nowrap; }
+  .ctx-menu button:hover{ background:var(--accent); color:#fff; }
+  .lightbox{ position:fixed; inset:0; background:rgba(0,0,0,.9); display:flex; align-items:center; justify-content:center; padding:24px; z-index:60; cursor:zoom-out; }
+  .lightbox img{ max-width:100%; max-height:100%; }
+
+  .modal{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:20px; z-index:55; }
+  .modal-card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; width:min(600px,100%); max-height:82vh; display:flex; flex-direction:column; }
+  .modal-head{ padding:14px 18px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; font-weight:650; font-size:15px; }
+  .modal-body{ padding:14px 18px; overflow:auto; }
+  .modal-foot{ padding:13px 18px; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .modal-foot .left{ display:flex; gap:10px; flex-wrap:wrap; }
+  .diff-head,.diff{ display:grid; grid-template-columns:1.1fr 1fr 16px 1fr; gap:10px; align-items:baseline; font-size:13px; padding:8px 0; border-bottom:1px solid var(--line); }
+  .diff-head{ color:var(--muted); font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; }
+  .diff-k{ color:var(--ink); font-weight:600; } .diff-old{ color:var(--muted); text-decoration:line-through; word-break:break-word; }
+  .diff-arrow{ color:var(--accent); text-align:center; } .diff-new{ color:var(--ink); font-weight:600; word-break:break-word; }
+  .modal-empty{ color:var(--muted); text-align:center; padding:26px 10px; }
+
+  /* Kamera-Verwaltung */
+  .cam-add{ display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; align-items:center; }
+  .cam-add input[type=text]{ flex:1; min-width:140px; } .cam-add select{ width:auto; }
+  .cam-edit-top{ display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .cam-edit-top .control{ flex:1; }
+  .cam-edit-form .field{ margin-bottom:12px; }
+  .cam-edit-form label{ margin-bottom:4px; }
+  .cam-edit-form textarea{ min-height:58px; font-size:12.5px; }
+  .cam-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:560px){ .cam-grid2{ grid-template-columns:1fr; } }
+  .feature-row{ display:flex; gap:18px; flex-wrap:wrap; margin:2px 0 6px; }
+  .feature-row label{ display:flex; align-items:center; gap:7px; color:var(--ink); font-weight:500; cursor:pointer; }
+  .feature-row input{ width:auto; }
+  .cparam-row{ display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+  .cparam-row .tag{ flex:1; font-size:12.5px; }
+  .cparam-row .tag b{ color:var(--ink); } .cparam-row .tag span{ color:var(--muted); }
+
+  .toast{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(18px); background:#1d1d21; color:#fff; border:1px solid var(--line); border-left:3px solid var(--accent); padding:11px 18px; border-radius:10px; font-size:14px; font-weight:600; opacity:0; pointer-events:none; transition:.24s; z-index:65; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (max-width:820px){
+    body{ height:auto; overflow:auto; }
+    .layout{ grid-template-columns:1fr; }
+    .sidebar{ border-right:none; border-bottom:1px solid var(--line); }
+    .recipe-list{ max-height:44vh; }
+  }
+</style>
+
+<header class="app-header">
+  <!-- Logo: Mount-Fuji-Kachel (dein Logo, ICON.png) – transparente Ecken auf schwarzem Header -->
+  <img class="app-mark" src="/ICON.png" alt="FujiRecipeVault logo">
+  <h1>FujiRecipeVault</h1>
+  <div class="cam-picker">
+    <select id="camera-select" class="cam-select"></select>
+    <button type="button" id="btn-cameras" class="icon-btn" title="Manage cameras">⚙</button>
+  </div>
+  <button type="button" id="btn-quit" class="btn-quit" title="Shut down server">⏻ Quit</button>
+</header>
+
+<main class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <button id="btn-new" class="btn-new">+ New recipe</button>
+      <input id="search" class="control" type="search" placeholder="Search (name, code, creator …)">
+      <select id="filter-sim" class="control"><option value="">All film simulations</option></select>
+      <div class="seg" id="filter-cbw">
+        <button type="button" data-v="" class="on">All</button>
+        <button type="button" data-v="color">Color</button>
+        <button type="button" data-v="bw">B&amp;W</button>
+      </div>
+      <div class="row">
+        <select id="sort" class="control">
+          <option value="new">Newest first</option>
+          <option value="old">Oldest first</option>
+          <option value="name">Name A–Z</option>
+          <option value="name_desc">Name Z–A</option>
+          <option value="fav">Favorites first</option>
+          <option value="sim">Film simulation</option>
+        </select>
+        <button id="filter-fav" class="toggle" title="Favorites only">♥</button>
+      </div>
+      <div id="count" class="count"></div>
+    </div>
+    <div id="recipe-list" class="recipe-list"></div>
+  </aside>
+
+  <section class="editor-wrap">
+    <div id="editor-empty" class="editor-empty">
+      <div class="empty-inner">
+        <h2 id="empty-title" class="empty-title">On the camera</h2>
+        <div id="camera-slots" class="camera-slots"></div>
+      </div>
+    </div>
+
+    <form id="editor" hidden>
+      <div class="editor-head">
+        <div class="editor-headline">
+          <div>
+            <div id="editor-title" class="editor-title">New recipe</div>
+            <div id="editor-sub" class="editor-sub"></div>
+          </div>
+          <div class="code-field">
+            <label for="short_code">Short code <button type="button" class="help" data-key="short_code">?</button></label>
+            <input id="short_code" name="short_code" type="text" maxlength="14" placeholder="e.g. KG+4-5" autocomplete="off">
+          </div>
+        </div>
+        <div class="editor-actions">
+          <button type="button" id="btn-heart" class="icon-btn" title="Mark as favorite" hidden>♡</button>
+          <button type="button" id="btn-changes" class="btn btn-ghost" title="Changes vs. the original" hidden>Changes</button>
+          <button type="button" id="btn-delete" class="btn btn-danger">Delete</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+
+      <div class="editor-body">
+        <div id="image-section" class="group">
+          <p class="band-title">Sample photos</p>
+          <div id="image-band" class="image-band"></div>
+          <input id="image-input" type="file" accept="image/*" multiple hidden>
+        </div>
+
+        <div class="group">
+          <p class="group-title">Basics</p>
+          <div class="fields">
+            <div class="field wide">
+              <label for="name">Name <span class="req">*</span> <button type="button" class="help" data-key="name">?</button></label>
+              <input id="name" name="name" type="text" placeholder="e.g. Kodak Portra Warm">
+            </div>
+            <div class="field wide">
+              <label for="film_simulation">Film simulation <button type="button" class="help" data-key="film_simulation">?</button></label>
+              <select id="film_simulation" name="film_simulation"></select>
+            </div>
+            <div class="field">
+              <label for="dynamic_range">Dynamic range <button type="button" class="help" data-key="dynamic_range">?</button></label>
+              <select id="dynamic_range" name="dynamic_range"><option value="">–</option><option>AUTO</option><option>DR100</option><option>DR200</option><option>DR400</option></select>
+            </div>
+            <div class="field">
+              <label for="d_range_priority">D-Range priority <button type="button" class="help" data-key="d_range_priority">?</button></label>
+              <select id="d_range_priority" name="d_range_priority"><option value="">–</option><option>OFF</option><option>WEAK</option><option>STRONG</option><option>AUTO</option></select>
+            </div>
+            <div class="field">
+              <label for="editor-slot">Slot on this camera <button type="button" class="help" data-key="camera_slot">?</button></label>
+              <select id="editor-slot"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <p class="group-title">Tone &amp; color</p>
+          <div class="fields">
+            <div class="field"><label for="highlight_tone">Highlight <button type="button" class="help" data-key="highlight_tone">?</button></label><input id="highlight_tone" name="highlight_tone" type="text" placeholder="0"></div>
+            <div class="field"><label for="shadow_tone">Shadow <button type="button" class="help" data-key="shadow_tone">?</button></label><input id="shadow_tone" name="shadow_tone" type="text" placeholder="0"></div>
+            <div class="field"><label for="color">Color <button type="button" class="help" data-key="color">?</button></label><input id="color" name="color" type="text" placeholder="0"></div>
+            <div class="field"><label for="sharpness">Sharpness <button type="button" class="help" data-key="sharpness">?</button></label><input id="sharpness" name="sharpness" type="text" placeholder="0"></div>
+            <div class="field"><label for="noise_reduction">Noise reduction <button type="button" class="help" data-key="noise_reduction">?</button></label><input id="noise_reduction" name="noise_reduction" type="text" placeholder="0"></div>
+            <div class="field" id="field-clarity"><label for="clarity">Clarity <button type="button" class="help" data-key="clarity">?</button></label><input id="clarity" name="clarity" type="text" placeholder="0"></div>
+          </div>
+        </div>
+
+        <div class="group">
+          <p class="group-title">Effects</p>
+          <div class="fields">
+            <div class="field"><label for="grain_effect">Grain effect <button type="button" class="help" data-key="grain_effect">?</button></label><select id="grain_effect" name="grain_effect"><option value="">–</option><option>OFF</option><option>WEAK</option><option>STRONG</option></select></div>
+            <div class="field" id="field-grainsize"><label for="grain_size">Grain size <button type="button" class="help" data-key="grain_size">?</button></label><select id="grain_size" name="grain_size"><option value="">–</option><option>SMALL</option><option>LARGE</option></select></div>
+            <div class="field"><label for="color_chrome_effect">Color Chrome Effect <button type="button" class="help" data-key="color_chrome_effect">?</button></label><select id="color_chrome_effect" name="color_chrome_effect"><option value="">–</option><option>OFF</option><option>WEAK</option><option>STRONG</option></select></div>
+            <div class="field" id="field-ccfxblue"><label for="color_chrome_effect_blue">Color Chrome FX Blue <button type="button" class="help" data-key="color_chrome_effect_blue">?</button></label><select id="color_chrome_effect_blue" name="color_chrome_effect_blue"><option value="">–</option><option>OFF</option><option>WEAK</option><option>STRONG</option></select></div>
+            <div class="field"><label for="bw_adj_warm_cool">B&amp;W warm–cool <button type="button" class="help" data-key="bw_adj_warm_cool">?</button></label><input id="bw_adj_warm_cool" name="bw_adj_warm_cool" type="text" placeholder="0"></div>
+          </div>
+        </div>
+
+        <div class="group">
+          <p class="group-title">White balance</p>
+          <div class="fields">
+            <div class="field wide">
+              <label for="white_balance">White balance <button type="button" class="help" data-key="white_balance">?</button></label>
+              <input id="white_balance" name="white_balance" type="text" list="wb-list" placeholder="e.g. AUTO, DAYLIGHT / FINE, COLOR TEMPERATURE (Kelvin) …">
+              <datalist id="wb-list"><option>AUTO</option><option>DAYLIGHT / FINE</option><option>SHADE</option><option>FLUORESCENT 1</option><option>FLUORESCENT 2</option><option>FLUORESCENT 3</option><option>INCANDESCENT</option><option>UNDERWATER</option><option>COLOR TEMPERATURE (Kelvin)</option><option>CUSTOM 1</option><option>CUSTOM 2</option><option>CUSTOM 3</option></datalist>
+            </div>
+            <div class="field"><label for="wb_kelvin">Color temperature (Kelvin) <button type="button" class="help" data-key="wb_kelvin">?</button></label><input id="wb_kelvin" name="wb_kelvin" type="text" placeholder="e.g. 5500"></div>
+            <div class="field"><label for="wb_shift_red">WB shift red <button type="button" class="help" data-key="wb_shift_red">?</button></label><input id="wb_shift_red" name="wb_shift_red" type="text" placeholder="0"></div>
+            <div class="field"><label for="wb_shift_blue">WB shift blue <button type="button" class="help" data-key="wb_shift_blue">?</button></label><input id="wb_shift_blue" name="wb_shift_blue" type="text" placeholder="0"></div>
+          </div>
+        </div>
+
+        <div class="group">
+          <p class="group-title">Exposure &amp; extras</p>
+          <div class="fields">
+            <div class="field"><label for="iso">ISO (recommended) <button type="button" class="help" data-key="iso">?</button></label><input id="iso" name="iso" type="text" placeholder="e.g. Auto (max 6400)"></div>
+            <div class="field"><label for="exposure_compensation">Exposure compensation <button type="button" class="help" data-key="exposure_compensation">?</button></label><input id="exposure_compensation" name="exposure_compensation" type="text" placeholder="e.g. +1/3 to +1"></div>
+            <div class="field"><label for="creator">Creator <button type="button" class="help" data-key="creator">?</button></label><input id="creator" name="creator" type="text" placeholder="optional – source / author"></div>
+            <div class="field wide"><label for="notes">Notes <button type="button" class="help" data-key="notes">?</button></label><textarea id="notes" name="notes" placeholder="Your own notes …"></textarea></div>
+          </div>
+        </div>
+
+        <div class="group" id="custom-group" hidden>
+          <p class="group-title">More parameters</p>
+          <div id="custom-params" class="fields"></div>
+        </div>
+
+        <div class="group">
+          <p class="group-title">Which cameras? <button type="button" class="help" data-key="cameras">?</button></p>
+          <div id="cam-memberships" class="cam-chips"></div>
+        </div>
+      </div>
+    </form>
+  </section>
+</main>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><span>Changes vs. the original</span><button type="button" id="modal-close" class="icon-btn">✕</button></div>
+    <div id="modal-body" class="modal-body"></div>
+    <div class="modal-foot">
+      <div class="left">
+        <button type="button" id="btn-reset" class="btn btn-ghost">Reset to original</button>
+        <button type="button" id="btn-set-original" class="btn btn-ghost">Set current as new original</button>
+      </div>
+      <button type="button" id="modal-ok" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="cam-modal" class="modal" hidden>
+  <div class="modal-card" style="width:min(760px,100%)">
+    <div class="modal-head"><span>Manage cameras</span><button type="button" id="cam-modal-close" class="icon-btn">✕</button></div>
+    <div class="modal-body">
+      <div class="cam-edit-top">
+        <select id="cam-edit-select" class="control"></select>
+        <button type="button" id="cam-del-btn" class="btn btn-danger">Delete</button>
+      </div>
+      <div id="cam-edit-form" class="cam-edit-form"></div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:20px 0 14px">
+      <p class="group-title">Add a new camera</p>
+      <div class="cam-add">
+        <input id="cam-new-name" type="text" placeholder="Name (e.g. My X-T4)">
+        <select id="cam-new-preset"></select>
+        <input id="cam-new-slots" type="number" min="1" max="14" value="7" title="Number of custom slots" style="width:80px">
+        <button type="button" id="cam-add-btn" class="btn btn-primary">Add</button>
+      </div>
+    </div>
+    <div class="modal-foot"><span></span><button type="button" id="cam-modal-ok" class="btn btn-primary">Done</button></div>
+  </div>
+</div>
+
+<div id="lightbox" class="lightbox" hidden><img id="lightbox-img" src="" alt="Sample photo"></div>
+<div id="img-menu" class="ctx-menu" hidden><button type="button" id="img-menu-remove">Remove image</button></div>
+<div id="help-pop" class="help-pop" hidden></div>
+<div id="toast" class="toast"></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const listEl=$('recipe-list'), countEl=$('count'), searchEl=$('search'), simEl=$('filter-sim'),
+        cbwEl=$('filter-cbw'), sortEl=$('sort'), favEl=$('filter-fav'), form=$('editor'),
+        emptyEl=$('editor-empty'), titleEl=$('editor-title'), subEl=$('editor-sub'),
+        heartBtn=$('btn-heart'), btnChng=$('btn-changes'), btnDel=$('btn-delete'), btnNew=$('btn-new'),
+        modal=$('modal'), modalBody=$('modal-body'), imageSection=$('image-section'), imageBand=$('image-band'),
+        imageInput=$('image-input'), lightbox=$('lightbox'), lightboxImg=$('lightbox-img'), imgMenu=$('img-menu'),
+        helpPop=$('help-pop'), toast=$('toast'), camSelect=$('camera-select'), cameraSlotsEl=$('camera-slots'),
+        editorSlot=$('editor-slot'), camMemberships=$('cam-memberships'), camModal=$('cam-modal');
+
+  const LABELS = {
+    name:'Name', short_code:'Short code', film_simulation:'Film simulation', dynamic_range:'Dynamic range',
+    d_range_priority:'D-Range priority', grain_effect:'Grain effect', grain_size:'Grain size',
+    color_chrome_effect:'Color Chrome', color_chrome_effect_blue:'Color Chrome FX Blue', white_balance:'White balance',
+    wb_kelvin:'Kelvin', wb_shift_red:'WB red', wb_shift_blue:'WB blue', bw_adj_warm_cool:'B&W warm–cool',
+    highlight_tone:'Highlight', shadow_tone:'Shadow', color:'Color', sharpness:'Sharpness',
+    noise_reduction:'Noise reduction', clarity:'Clarity', iso:'ISO', exposure_compensation:'Exposure compensation',
+    creator:'Creator', notes:'Notes'
+  };
+  const EDITABLE_KEYS = Object.keys(LABELS);
+  const DIFF_KEYS = EDITABLE_KEYS.filter(k => !['short_code','creator','notes'].includes(k));
+  const PRESETS = [ {id:'xt3',name:'X-T3'},{id:'xt4',name:'X-T4'},{id:'xpro3',name:'X-Pro3'},{id:'x100v',name:'X100V'},{id:'xt5',name:'X-T5'} ];
+  const DEFAULT_DD = { dynamic_range:['AUTO','DR100','DR200','DR400'], d_range_priority:['OFF','WEAK','STRONG','AUTO'], grain_effect:['OFF','WEAK','STRONG'], grain_size:['SMALL','LARGE'], color_chrome_effect:['OFF','WEAK','STRONG'], color_chrome_effect_blue:['OFF','WEAK','STRONG'] };
+  const HELP = {
+    short_code:'Short code for the camera (2–4 letters + ±R±B). It records the white-balance shift, which the camera does not store per custom bank.',
+    name:'A free-form name used in this app. On the camera itself a custom name is limited to 12 characters.',
+    film_simulation:'The base picture profile. Only the film simulations of the selected camera are offered.',
+    dynamic_range:'Protects the highlights. DR200 needs ISO 320+, DR400 needs ISO 640+.',
+    d_range_priority:'Automatic contrast/dynamic-range control. WEAK/STRONG overrides Highlight, Shadow & DR.',
+    grain_effect:'Film-grain strength (OFF/WEAK/STRONG).',
+    grain_size:'Grain size (small/large) – only on cameras from the X-T4 onwards.',
+    color_chrome_effect:'Adds tonal depth to strong, saturated colors.',
+    color_chrome_effect_blue:'Like Color Chrome, but for blue tones – only on cameras from the X-T4 onwards.',
+    white_balance:'White-balance mode. Enter the red/blue shift in the fields and in the short code.',
+    wb_kelvin:'Fixed color temperature in Kelvin (about 2500–10000 K).',
+    wb_shift_red:'WB fine-tuning red (+)/cyan (−), −9 to +9.',
+    wb_shift_blue:'WB fine-tuning blue (+)/yellow (−), −9 to +9.',
+    bw_adj_warm_cool:'Toning warm (+)/cool (−). Only for ACROS/Monochrome.',
+    highlight_tone:'Contrast in the highlights. Usually −2 to +4.',
+    shadow_tone:'Contrast in the shadows. Usually −2 to +4.',
+    color:'Color saturation. Usually −4 to +4.',
+    sharpness:'Sharpening. Usually −4 to +4.',
+    noise_reduction:'Noise reduction. Usually −4 to +4.',
+    clarity:'Micro-contrast/structure – only on cameras from the X-T4 onwards.',
+    iso:'Recommended ISO or upper limit.',
+    exposure_compensation:'Recommended exposure compensation in EV.',
+    creator:'Who created the recipe, or the source. Optional.',
+    notes:'Space for your own notes.',
+    camera_slot:'Which custom bank this recipe sits in on THIS camera. For overview only – nothing is written to the camera.',
+    cameras:'Which cameras this recipe belongs to. The current camera is fixed. You can add others whose film simulation matches.'
+  };
+
+  let allRecipes = [], cameras = [], currentCameraId = null, currentId = undefined, favOnly = false, cbw = '', imgMenuTarget = null, camEditId = null;
+
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const camById = id => cameras.find(c => c.id === id);
+  const currentCamera = () => camById(currentCameraId) || cameras[0] || {id:'',name:'',slots:7,features:{},film_sims:[],slotmap:{}};
+  const recipeCameras = r => (r.cameras || '').split(',').filter(Boolean);
+  const isBW = r => { const f=(r.film_simulation||'').toUpperCase(); return f.startsWith('ACROS')||f.startsWith('MONOCHROME')||f.startsWith('SEPIA'); };
+  function isModified(r){
+    if(!r.original_json) return false;
+    let o; try{ o=JSON.parse(r.original_json); }catch(e){ return false; }
+    return DIFF_KEYS.some(k => String(r[k] ?? '') !== String(o[k] ?? ''));
+  }
+
+  async function loadAll(){
+    cameras = await (await fetch('/api/cameras')).json();
+    if(!camById(currentCameraId)){
+      currentCameraId = localStorage.getItem('currentCamera');
+      if(!camById(currentCameraId)) currentCameraId = cameras[0] ? cameras[0].id : null;
+    }
+    allRecipes = await (await fetch('/api/recipes')).json();
+    renderCamSelect(); refreshSimFilter(); renderList(); renderCamera();
+  }
+  const loadRecipes = loadAll;   // Slot/Recipe-Änderungen laden beides neu
+
+  // Mitgelieferte Beispiel-Rezepte in die aktuelle Kamera laden (Knopf im leeren Zustand).
+  async function loadExamples(){
+    const btn = document.getElementById('btn-load-examples');
+    if(btn){ btn.disabled = true; btn.textContent = 'Loading…'; }
+    try{
+      await fetch('/api/examples?camera=' + encodeURIComponent(currentCameraId), { method:'POST' });
+      await loadAll();
+    }catch(e){
+      if(btn){ btn.disabled = false; btn.textContent = 'Load example recipes'; }
+    }
+  }
+
+  function renderCamSelect(){
+    camSelect.innerHTML = cameras.map(c => `<option value="${c.id}"${c.id===currentCameraId?' selected':''}>${esc(c.name)}</option>`).join('');
+  }
+  function refreshSimFilter(){
+    const cam = currentCamera();
+    const used = new Set(allRecipes.filter(r => recipeCameras(r).includes(currentCameraId)).map(r => r.film_simulation).filter(Boolean));
+    const sims = (cam.film_sims||[]).filter(s => used.has(s)).concat([...used].filter(s => !(cam.film_sims||[]).includes(s)));
+    const cur = simEl.value;
+    simEl.innerHTML = '<option value="">All film simulations</option>' + [...new Set(sims)].map(s => `<option${s===cur?' selected':''}>${esc(s)}</option>`).join('');
+  }
+
+  function renderList(){
+    const q = searchEl.value.trim().toLowerCase(), sim = simEl.value;
+    let items = allRecipes.filter(r => {
+      if(!recipeCameras(r).includes(currentCameraId)) return false;
+      if(favOnly && r.liked !== '1') return false;
+      if(sim && r.film_simulation !== sim) return false;
+      if(cbw === 'color' && isBW(r)) return false;
+      if(cbw === 'bw' && !isBW(r)) return false;
+      if(q && !((r.name+' '+r.film_simulation+' '+r.notes+' '+r.short_code+' '+r.creator).toLowerCase().includes(q))) return false;
+      return true;
+    });
+    const s = sortEl.value;
+    items.sort((a,b) => {
+      if(s==='name') return (a.name||'').localeCompare(b.name||'');
+      if(s==='name_desc') return (b.name||'').localeCompare(a.name||'');
+      if(s==='old') return (a.id||'').localeCompare(b.id||'');
+      if(s==='fav') return (b.liked==='1')-(a.liked==='1') || (a.name||'').localeCompare(b.name||'');
+      if(s==='sim') return (a.film_simulation||'').localeCompare(b.film_simulation||'') || (a.name||'').localeCompare(b.name||'');
+      return (b.id||'').localeCompare(a.id||'');
+    });
+    countEl.textContent = items.length + ' recipe' + (items.length===1?'':'s') + ' · ' + esc(currentCamera().name);
+    if(items.length===0){
+      const noneAtAll = allRecipes.length === 0;   // wirklich leere Bibliothek (frischer Start)?
+      listEl.innerHTML = '<div class="list-empty">'
+        + 'No recipes for <b>' + esc(currentCamera().name) + '</b> yet.'
+        + (noneAtAll
+            ? '<div class="empty-actions"><button id="btn-load-examples" class="btn btn-ghost">Load example recipes</button></div>'
+              + '<div class="empty-hint">New here? Load a few examples to see how it works — '
+              + 'or click <b>+ New recipe</b> above to add your own.</div>'
+            : '<div class="empty-hint">Click <b>+ New recipe</b> above to add one.</div>')
+        + '</div>';
+      const be = document.getElementById('btn-load-examples');
+      if(be) be.addEventListener('click', loadExamples);
+      return;
+    }
+    listEl.innerHTML = items.map(r => {
+      const liked = r.liked === '1';
+      return `<div class="item${r.id===currentId?' active':''}" draggable="true" data-id="${r.id}" onclick="clickRecipe('${r.id}')">
+        <div class="item-main"><span class="nm">${esc(r.name||'Untitled')}</span><span class="fs">${esc(r.film_simulation||'—')}</span></div>
+        <button class="heart${liked?' on':''}" title="Favorit" onclick="toggleLike(event,'${r.id}')">${liked?'♥':'♡'}</button>
+      </div>`;
+    }).join('');
+  }
+
+  function renderCamera(){
+    const cam = currentCamera();
+    $('empty-title').textContent = 'On the camera · ' + cam.name;
+    const n = cam.slots || 7, sm = cam.slotmap || {};
+    let html = '';
+    for(let i=1;i<=n;i++){
+      const s = 'C'+i, r = allRecipes.find(x => x.id === sm[s]);
+      html += `<div class="cslot ${r?'filled':'empty'}" data-slot="${s}">
+        <span class="cslot-n">${s}</span>
+        <span class="cslot-name"${r?` onclick="selectRecipe('${r.id}')"`:''}>${r?esc(r.name):'— empty — (drag a recipe here)'}</span>
+        ${r?`<button type="button" class="cslot-clear" title="Clear slot" onclick="clearSlot('${s}')">✕</button>`:''}
+      </div>`;
+    }
+    cameraSlotsEl.innerHTML = html;
+  }
+  async function assignSlot(slot, recipeId){
+    await fetch('/api/cameras/slot?camera='+encodeURIComponent(currentCameraId)+'&slot='+encodeURIComponent(slot)+'&recipe='+encodeURIComponent(recipeId||''), { method:'PUT' });
+    await loadAll();
+  }
+  async function clearSlot(slot){ await assignSlot(slot, ''); }
+
+  function setSelectValue(sel, value){
+    sel.querySelectorAll('option[data-adhoc]').forEach(o => o.remove());
+    if(value && ![...sel.options].some(o => o.value === value)){
+      const opt=document.createElement('option'); opt.value=value; opt.textContent=value; opt.setAttribute('data-adhoc','1'); sel.appendChild(opt);
+    }
+    sel.value = value || '';
+  }
+  function applyCameraToEditor(r){
+    const cam = currentCamera();
+    // Filmsimulationen der Kamera
+    $('film_simulation').innerHTML = '<option value="">– please choose –</option>' + (cam.film_sims||[]).map(s=>`<option>${esc(s)}</option>`).join('');
+    // eingebaute Dropdown-Werte aus der Kamera
+    const po = cam.param_options || {};
+    ['dynamic_range','d_range_priority','grain_effect','grain_size','color_chrome_effect','color_chrome_effect_blue'].forEach(key => {
+      const sel = $(key); if(!sel) return;
+      const opts = po[key] || DEFAULT_DD[key] || [];
+      sel.innerHTML = '<option value="">–</option>' + opts.map(o=>`<option>${esc(o)}</option>`).join('');
+    });
+    // Sichtbarkeit der optionalen Parameter
+    const f = cam.features || {};
+    $('field-clarity').hidden = !f.clarity;
+    $('field-ccfxblue').hidden = !f.color_chrome_effect_blue;
+    $('field-grainsize').hidden = !f.grain_size;
+    // Platz-Dropdown für DIESE Kamera
+    const n = cam.slots || 7, sm = cam.slotmap || {};
+    let cur = ''; for(let i=1;i<=n;i++){ if(sm['C'+i] === currentId) cur='C'+i; }
+    let so = '<option value="">— not on the camera —</option>';
+    for(let i=1;i<=n;i++) so += `<option value="C${i}">C${i}</option>`;
+    editorSlot.innerHTML = so; editorSlot.value = cur;
+    renderCustomParams(cam, r);
+    renderMemberships(r);
+  }
+  function renderCustomParams(cam, r){
+    const cps = cam.custom_params || [];
+    $('custom-group').hidden = cps.length === 0;
+    let cust = {}; try{ cust = JSON.parse((r && r.custom) || '{}'); }catch(e){}
+    $('custom-params').innerHTML = cps.map(p => {
+      const val = cust[p.key] != null ? cust[p.key] : '';
+      if(p.type === 'select'){
+        const opts = '<option value="">–</option>' + (p.options||[]).map(o=>`<option${o===val?' selected':''}>${esc(o)}</option>`).join('');
+        return `<div class="field"><label>${esc(p.label||p.key)}</label><select data-custom="${esc(p.key)}">${opts}</select></div>`;
+      }
+      return `<div class="field"><label>${esc(p.label||p.key)}</label><input type="text" data-custom="${esc(p.key)}" value="${esc(val)}"></div>`;
+    }).join('');
+  }
+  function renderMemberships(r){
+    const mine = r ? recipeCameras(r) : [currentCameraId];
+    camMemberships.innerHTML = cameras.map(c => {
+      const on = mine.includes(c.id);
+      const compatible = !r || !r.film_simulation || (c.film_sims||[]).includes(r.film_simulation) || c.id===currentCameraId;
+      const locked = c.id === currentCameraId;
+      const cls = 'cam-chip' + (on?' on':'') + (locked?' locked':'') + (!compatible && !on ?' disabled':'');
+      return `<span class="${cls}" ${locked||(!compatible&&!on)?'':`onclick="toggleMembership('${c.id}')"`}>${on?'✓ ':''}${esc(c.name)}</span>`;
+    }).join('');
+  }
+  async function toggleMembership(camId){
+    if(!currentId) return;
+    const r = allRecipes.find(x => x.id === currentId); if(!r) return;
+    let mine = recipeCameras(r);
+    mine = mine.includes(camId) ? mine.filter(x => x !== camId) : mine.concat([camId]);
+    if(!mine.includes(currentCameraId)) mine.push(currentCameraId);
+    await fetch('/api/recipes?id='+encodeURIComponent(currentId), { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ cameras: mine.join(',') }) });
+    await loadAll();
+    const rr = allRecipes.find(x => x.id === currentId); if(rr) renderMemberships(rr);
+  }
+
+  function fillForm(r){
+    for(const key of EDITABLE_KEYS){
+      const field = form.elements[key];
+      if(!field) continue;
+      const val = (r && r[key] != null) ? r[key] : '';
+      if(field.tagName === 'SELECT') setSelectValue(field, val);
+      else field.value = val;
+    }
+  }
+
+  function clickRecipe(id){ if(currentId === id) deselectRecipe(); else selectRecipe(id); }
+  function selectRecipe(id){
+    const r = allRecipes.find(x => x.id === id); if(!r) return;
+    currentId = id; applyCameraToEditor(r); fillForm(r);
+    titleEl.textContent = r.name || 'Untitled';
+    subEl.textContent = 'Saved: ' + (r.created_at || '—') + (isModified(r) ? ' · edited' : '');
+    heartBtn.hidden=false; btnChng.hidden=false; btnDel.hidden=false;
+    updateHeart(); renderImages();
+    emptyEl.hidden=true; form.hidden=false; renderList();
+  }
+  function deselectRecipe(){ currentId=undefined; form.hidden=true; emptyEl.hidden=false; renderCamera(); renderList(); }
+  function newRecipe(){
+    currentId=null; applyCameraToEditor(null); fillForm(null);
+    titleEl.textContent='New recipe'; subEl.textContent='For: '+currentCamera().name;
+    heartBtn.hidden=true; btnChng.hidden=true; btnDel.hidden=true;
+    renderImages(); emptyEl.hidden=true; form.hidden=false; renderList(); form.elements['name'].focus();
+  }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
+    if(!data.name || !data.name.trim()){ alert('Please give the recipe a name.'); return; }
+    const custom = {}; document.querySelectorAll('#custom-params [data-custom]').forEach(el => { custom[el.dataset.custom] = el.value; });
+    data.custom = JSON.stringify(custom);
+    const isUpdate = !!currentId;
+    if(!isUpdate) data.cameras = currentCameraId;   // neues Rezept gehört zur aktuellen Kamera
+    const res = isUpdate
+      ? await fetch('/api/recipes?id='+encodeURIComponent(currentId), { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })
+      : await fetch('/api/recipes', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+    if(!res.ok){ alert('Saving failed.'); return; }
+    const saved = await res.json();
+    await loadAll(); selectRecipe(saved.id);
+    showToast(isUpdate ? 'Changes saved ✓' : 'Recipe saved ✓');
+  });
+
+  btnDel.addEventListener('click', async () => {
+    if(!currentId) return;
+    const r = allRecipes.find(x => x.id === currentId);
+    if(!confirm('Delete "'+(r?(r.name||'this recipe'):'this recipe')+'"?')) return;
+    await fetch('/api/recipes?id='+encodeURIComponent(currentId), { method:'DELETE' });
+    currentId=undefined; form.hidden=true; emptyEl.hidden=false; await loadAll(); showToast('Recipe deleted');
+  });
+
+  async function toggleLike(ev, id){
+    ev.stopPropagation();
+    const r = allRecipes.find(x => x.id === id); if(!r) return;
+    r.liked = (r.liked==='1') ? '' : '1'; renderList(); if(currentId===id) updateHeart();
+    await fetch('/api/recipes?id='+encodeURIComponent(id), { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ liked:r.liked }) });
+  }
+  function updateHeart(){ const r=allRecipes.find(x=>x.id===currentId); const l=r&&r.liked==='1'; heartBtn.textContent=l?'♥':'♡'; heartBtn.classList.toggle('on',!!l); }
+  heartBtn.addEventListener('click', () => { if(currentId) toggleLike({stopPropagation(){}}, currentId); });
+
+  editorSlot.addEventListener('change', async () => {
+    if(!currentId) return;
+    const slot = editorSlot.value;
+    if(slot) await assignSlot(slot, currentId);
+    else { // aus aktuellem Platz entfernen
+      const sm = currentCamera().slotmap || {};
+      for(const [s,rid] of Object.entries(sm)) if(rid===currentId) { await assignSlot(s, ''); break; }
+    }
+    showToast(slot ? ('Placed on '+slot) : 'Removed from the camera');
+  });
+
+  btnChng.addEventListener('click', () => {
+    const r = allRecipes.find(x => x.id === currentId); if(!r) return;
+    let o={}; try{ o=JSON.parse(r.original_json||'{}'); }catch(e){}
+    const rows = DIFF_KEYS.filter(k => String(r[k]??'')!==String(o[k]??'')).map(k =>
+      `<div class="diff"><div class="diff-k">${esc(LABELS[k])}</div><div class="diff-old">${esc(o[k]||'—')}</div><div class="diff-arrow">→</div><div class="diff-new">${esc(r[k]||'—')}</div></div>`);
+    modalBody.innerHTML = rows.length ? '<div class="diff-head"><span>Field</span><span>Original</span><span></span><span>Current</span></div>'+rows.join('') : '<div class="modal-empty">No changes to the camera settings.</div>';
+    modal.hidden=false;
+  });
+  $('btn-reset').addEventListener('click', () => {
+    const r = allRecipes.find(x => x.id === currentId); if(!r) return;
+    let o={}; try{ o=JSON.parse(r.original_json||'{}'); }catch(e){}
+    for(const k of DIFF_KEYS){ const f=form.elements[k]; if(!f) continue; const v=o[k]??''; if(f.tagName==='SELECT') setSelectValue(f,v); else f.value=v; }
+    modal.hidden=true; showToast('Original loaded – click "Save" to apply');
+  });
+  $('btn-set-original').addEventListener('click', async () => {
+    if(!currentId) return;
+    const data = Object.fromEntries(new FormData(form).entries());
+    await fetch('/api/recipes?id='+encodeURIComponent(currentId)+'&set_original=1', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+    modal.hidden=true; await loadAll(); selectRecipe(currentId); showToast('Current state is now the original ✓');
+  });
+  $('modal-close').addEventListener('click', () => modal.hidden=true);
+  $('modal-ok').addEventListener('click', () => modal.hidden=true);
+  modal.addEventListener('click', e => { if(e.target===modal) modal.hidden=true; });
+
+  // Bilder
+  const parseImages = r => { try{ const a=JSON.parse(r.images||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } };
+  function renderImages(){
+    if(currentId===undefined){ imageSection.hidden=true; return; }
+    imageSection.hidden=false;
+    const r = allRecipes.find(x=>x.id===currentId), imgs = r?parseImages(r):[];
+    imageBand.innerHTML = imgs.map(name => `<img class="thumb" src="/images/${encodeURIComponent(currentId)}/${encodeURIComponent(name)}" data-name="${esc(name)}" alt="Sample photo">`).join('') +
+      `<button type="button" class="add-thumb" onclick="document.getElementById('image-input').click()">+ Photo</button>`;
+  }
+  imageBand.addEventListener('click', e => { const img=e.target.closest('img.thumb'); if(img) openLightbox(img.dataset.name); });
+  imageBand.addEventListener('contextmenu', e => { const img=e.target.closest('img.thumb'); if(!img) return; e.preventDefault(); imgMenuTarget=img.dataset.name; imgMenu.style.left=Math.min(e.clientX,window.innerWidth-160)+'px'; imgMenu.style.top=e.clientY+'px'; imgMenu.hidden=false; });
+  $('img-menu-remove').addEventListener('click', () => { imgMenu.hidden=true; if(imgMenuTarget) deleteImage(imgMenuTarget); });
+  imageInput.addEventListener('change', async () => {
+    if(!imageInput.files.length) return;
+    if(!currentId){ imageInput.value=''; showToast('Please save the recipe first.'); return; }
+    for(const file of imageInput.files) await fetch('/api/images?id='+encodeURIComponent(currentId)+'&name='+encodeURIComponent(file.name), { method:'POST', headers:{'Content-Type':file.type||'application/octet-stream'}, body:file });
+    imageInput.value=''; await loadAll(); renderImages(); showToast('Photo(s) added ✓');
+  });
+  async function deleteImage(name){ if(!currentId) return; await fetch('/api/images?id='+encodeURIComponent(currentId)+'&name='+encodeURIComponent(name), { method:'DELETE' }); await loadAll(); renderImages(); showToast('Image removed'); }
+  function openLightbox(name){ lightboxImg.src='/images/'+encodeURIComponent(currentId)+'/'+encodeURIComponent(name); lightbox.hidden=false; }
+  lightbox.addEventListener('click', () => { lightbox.hidden=true; lightboxImg.src=''; });
+
+  // Drag & Drop
+  listEl.addEventListener('dragstart', e => { const it=e.target.closest('.item'); if(!it) return; e.dataTransfer.setData('text/plain', it.dataset.id); e.dataTransfer.effectAllowed='move'; it.classList.add('dragging'); });
+  listEl.addEventListener('dragend', e => { const it=e.target.closest('.item'); if(it) it.classList.remove('dragging'); });
+  cameraSlotsEl.addEventListener('dragover', e => { const s=e.target.closest('.cslot'); if(!s) return; e.preventDefault(); s.classList.add('drop'); });
+  cameraSlotsEl.addEventListener('dragleave', e => { const s=e.target.closest('.cslot'); if(s) s.classList.remove('drop'); });
+  cameraSlotsEl.addEventListener('drop', async e => {
+    const s=e.target.closest('.cslot'); if(!s) return; e.preventDefault(); s.classList.remove('drop');
+    const id=e.dataTransfer.getData('text/plain'); if(!id) return;
+    const rr=allRecipes.find(x=>x.id===id);
+    await assignSlot(s.dataset.slot, id);
+    showToast((rr?rr.name:'Recipe')+' → '+s.dataset.slot);
+  });
+
+  // Kamera-Auswahl + Verwaltung
+  camSelect.addEventListener('change', () => { currentCameraId=camSelect.value; localStorage.setItem('currentCamera',currentCameraId); deselectRecipe(); refreshSimFilter(); renderList(); renderCamera(); });
+  $('btn-cameras').addEventListener('click', openCamModal);
+  $('cam-modal-close').addEventListener('click', () => camModal.hidden=true);
+  $('cam-modal-ok').addEventListener('click', () => camModal.hidden=true);
+  camModal.addEventListener('click', e => { if(e.target===camModal) camModal.hidden=true; });
+  function openCamModal(){
+    $('cam-new-preset').innerHTML = PRESETS.map(p => `<option value="${p.id}">${esc(p.name)} (template)</option>`).join('');
+    $('cam-new-name').value=''; $('cam-new-slots').value=7;
+    camEditId = camById(currentCameraId) ? currentCameraId : (cameras[0] && cameras[0].id);
+    renderCamEditSelect(); renderCamEditForm(); camModal.hidden=false;
+  }
+  function renderCamEditSelect(){
+    $('cam-edit-select').innerHTML = cameras.map(c => `<option value="${c.id}"${c.id===camEditId?' selected':''}>${esc(c.name)}</option>`).join('');
+    $('cam-del-btn').disabled = cameras.length <= 1;
+  }
+  const DD_LABELS = { dynamic_range:'Dynamic range', d_range_priority:'D-Range priority', grain_effect:'Grain effect', grain_size:'Grain size', color_chrome_effect:'Color Chrome Effect', color_chrome_effect_blue:'Color Chrome FX Blue' };
+  function renderCamEditForm(){
+    const c = camById(camEditId); if(!c){ $('cam-edit-form').innerHTML=''; return; }
+    const po=c.param_options||{}, cps=c.custom_params||[], ft=c.features||{};
+    $('cam-edit-form').innerHTML = `
+      <div class="cam-grid2">
+        <div class="field"><label>Name</label><input id="ce-name" type="text" value="${esc(c.name)}"></div>
+        <div class="field"><label>Number of custom slots</label><input id="ce-slots" type="number" min="1" max="14" value="${c.slots||7}"></div>
+      </div>
+      <div class="field"><label>Film simulations (one per line)</label><textarea id="ce-sims" style="min-height:130px">${esc((c.film_sims||[]).join('\n'))}</textarea></div>
+      <div class="field"><label>Optional parameters enabled</label><div class="feature-row">
+        <label><input type="checkbox" id="ce-clarity" ${ft.clarity?'checked':''}> Clarity</label>
+        <label><input type="checkbox" id="ce-ccfxblue" ${ft.color_chrome_effect_blue?'checked':''}> Color Chrome FX Blue</label>
+        <label><input type="checkbox" id="ce-grainsize" ${ft.grain_size?'checked':''}> Grain size</label>
+      </div></div>
+      <div class="field"><label>Allowed parameter values (one per line)</label>
+        <div class="cam-grid2">${['dynamic_range','d_range_priority','grain_effect','grain_size','color_chrome_effect','color_chrome_effect_blue'].map(k => `<div class="field"><label style="font-weight:500">${DD_LABELS[k]}</label><textarea data-dd="${k}">${esc((po[k]||DEFAULT_DD[k]||[]).join('\n'))}</textarea></div>`).join('')}</div>
+      </div>
+      <div class="field"><label>Custom parameters</label>
+        <div id="ce-custom">${cps.length ? cps.map((p,i)=>`<div class="cparam-row"><span class="tag"><b>${esc(p.label||p.key)}</b> <span>(${esc(p.key)} · ${p.type==='select'?'Options: '+esc((p.options||[]).join(', ')):'Text'})</span></span><button type="button" class="btn btn-danger" onclick="removeCustomParam(${i})">Remove</button></div>`).join('') : '<span class="tag" style="color:var(--muted)">none</span>'}</div>
+        <div class="cam-add" style="margin-top:8px">
+          <input id="cp-key" type="text" placeholder="Key (e.g. toning)" style="width:150px">
+          <input id="cp-label" type="text" placeholder="Display name">
+          <select id="cp-type"><option value="text">Text field</option><option value="select">Dropdown</option></select>
+          <input id="cp-opts" type="text" placeholder="Options, comma-separated">
+          <button type="button" id="cp-add" class="btn btn-ghost">+ Parameter</button>
+        </div>
+      </div>
+      <div style="margin-top:12px"><button type="button" id="ce-save" class="btn btn-primary">Save camera</button></div>`;
+    $('ce-save').addEventListener('click', saveCamEdit);
+    $('cp-add').addEventListener('click', addCustomParam);
+  }
+  function addCustomParam(){
+    const key=$('cp-key').value.trim(), label=$('cp-label').value.trim(), type=$('cp-type').value, opts=$('cp-opts').value.split(',').map(s=>s.trim()).filter(Boolean);
+    if(!key){ alert('Please enter a key.'); return; }
+    const c=camById(camEditId); c.custom_params=c.custom_params||[]; c.custom_params.push({ key, label:label||key, type, options:opts }); renderCamEditForm();
+  }
+  function removeCustomParam(i){ const c=camById(camEditId); (c.custom_params||[]).splice(i,1); renderCamEditForm(); }
+  async function saveCamEdit(){
+    const c=camById(camEditId); if(!c) return;
+    const po={}; document.querySelectorAll('#cam-edit-form [data-dd]').forEach(t => { po[t.dataset.dd]=t.value.split('\n').map(s=>s.trim()).filter(Boolean); });
+    const body = { name:$('ce-name').value.trim()||c.name, slots:parseInt($('ce-slots').value)||7,
+      film_sims:$('ce-sims').value.split('\n').map(s=>s.trim()).filter(Boolean),
+      features:{ clarity:$('ce-clarity').checked, color_chrome_effect_blue:$('ce-ccfxblue').checked, grain_size:$('ce-grainsize').checked },
+      param_options:po, custom_params:c.custom_params||[] };
+    await fetch('/api/cameras?id='+encodeURIComponent(camEditId), { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    await loadAll(); renderCamEditSelect(); renderCamEditForm(); showToast('Camera saved ✓');
+  }
+  $('cam-edit-select').addEventListener('change', () => { camEditId=$('cam-edit-select').value; renderCamEditForm(); });
+  $('cam-del-btn').addEventListener('click', async () => {
+    if(cameras.length<=1){ alert('At least one camera must remain.'); return; }
+    const c=camById(camEditId);
+    if(!confirm('Delete camera "'+(c?c.name:'')+'"? Recipes are kept but lose this assignment.')) return;
+    await fetch('/api/cameras?id='+encodeURIComponent(camEditId), { method:'DELETE' });
+    if(currentCameraId===camEditId) currentCameraId=null;
+    await loadAll(); camEditId=currentCameraId||(cameras[0]&&cameras[0].id); renderCamEditSelect(); renderCamEditForm();
+  });
+  $('cam-add-btn').addEventListener('click', async () => {
+    const name=$('cam-new-name').value.trim(), preset=$('cam-new-preset').value, slots=parseInt($('cam-new-slots').value)||7;
+    if(!name){ alert('Please enter a name.'); return; }
+    const res = await fetch('/api/cameras', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name, preset, slots }) });
+    const cam = await res.json();
+    currentCameraId = cam.id; localStorage.setItem('currentCamera', cam.id);
+    $('cam-new-name').value=''; await loadAll(); camEditId=cam.id; renderCamEditSelect(); renderCamEditForm(); showToast('Camera "'+name+'" created');
+  });
+
+  // Hilfe + Menüs
+  document.addEventListener('click', e => {
+    const b=e.target.closest('.help');
+    if(b){ e.preventDefault(); helpPop.textContent=HELP[b.dataset.key]||''; helpPop.hidden=false; const r=b.getBoundingClientRect(); const w=Math.min(300,window.innerWidth-24); helpPop.style.width=w+'px'; let left=r.left; if(left+w>window.innerWidth-12) left=window.innerWidth-w-12; helpPop.style.left=Math.max(12,left)+'px'; helpPop.style.top=(r.bottom+8)+'px'; return; }
+    if(e.target!==helpPop) helpPop.hidden=true;
+    if(!e.target.closest('#img-menu')) imgMenu.hidden=true;
+  });
+
+  let toastTimer;
+  function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toast.classList.remove('show'),2600); }
+
+  btnNew.addEventListener('click', newRecipe);
+  searchEl.addEventListener('input', renderList);
+  simEl.addEventListener('change', renderList);
+  sortEl.addEventListener('change', renderList);
+  favEl.addEventListener('click', () => { favOnly=!favOnly; favEl.classList.toggle('on',favOnly); renderList(); });
+  cbwEl.addEventListener('click', e => { const b=e.target.closest('button'); if(!b) return; cbw=b.dataset.v; [...cbwEl.children].forEach(c=>c.classList.toggle('on',c===b)); renderList(); });
+  $('btn-quit').addEventListener('click', async () => {
+    if(!confirm('Shut down the server? The app will close afterwards – you can then close the window.')) return;
+    try{ await fetch('/api/shutdown', { method:'POST' }); }catch(e){}
+    document.body.innerHTML = '<div style="height:100vh;display:flex;align-items:center;justify-content:center;color:#9a9aa2;text-align:center;font-family:-apple-system,sans-serif"><div><div style="font-size:44px;margin-bottom:14px">⏻</div><div style="font-size:16px;color:#f4f4f5">Server stopped</div><div style="margin-top:8px">You can close this window.</div></div></div>';
+  });
+
+  loadAll();
+</script>
